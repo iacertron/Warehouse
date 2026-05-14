@@ -5,6 +5,12 @@ import _ from 'lodash';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Text, Edges, ContactShadows } from '@react-three/drei';
 
+import { tenant } from './config/tenants';
+import { COLORES_FORMATO } from './config/colores';
+
+console.log(tenant.id);          // 'copec_lub'
+console.log(COLORES_FORMATO);    // objeto con 7 entradas
+
 // --- PALETAS DE COLORES (Diseño Industrial) ---
 const COLORES_SKU = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e', '#84cc16'];
 const COLORES_FORMATO = { 
