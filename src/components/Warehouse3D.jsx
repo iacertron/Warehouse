@@ -1,24 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import _ from 'lodash';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text, Edges } from '@react-three/drei';
+import { OrbitControls, Text, Edges, Grid } from '@react-three/drei';
 import { getColorCarga } from '../utils/colorUtils';
 
 // ── Constantes ─────────────────────────────────────────────────────────────
 const NIVEL_H  = 1.2;
 const FLOOR_Y  = -0.85;
-const PALLET_W = 1.2;   // largo en Z (a lo largo del rack)
-const PALLET_D = 0.8;   // profundidad en X (reach)
+const PALLET_W = 1.2;
+const PALLET_D = 0.8;
 
-const HW = PALLET_D / 2 + 0.08;   // 0.48 — semiancho rack en X
-const HD = PALLET_W / 2 + 0.05;   // 0.65 — semiprofundidad rack en Z
+const HW = PALLET_D / 2 + 0.08;
+const HD = PALLET_W / 2 + 0.05;
 
 const nivelBase = (n) => (n - 1) * NIVEL_H;
 
 // ── Layout zigzag back-to-back ─────────────────────────────────────────────
-// Rack impar → frente del bloque (X = bloqueX - 1.3)
-// Rack par   → fondo del bloque  (X = bloqueX + 1.3)
-// Pares (1,2), (3,4), (5,6)... comparten el mismo Z → back-to-back
 const calcPos = (pasillo, rack, offsetZ) => {
   const esImpar = rack % 2 !== 0;
   return {
@@ -28,43 +25,62 @@ const calcPos = (pasillo, rack, offsetZ) => {
   };
 };
 
-// ── Rack metálico industrial ───────────────────────────────────────────────
-const RackEstructura = ({ x, z, niveles, rackNum, esImpar }) => {
-  const colH   = niveles * NIVEL_H + Math.abs(FLOOR_Y);
-  const colMY  = FLOOR_Y + colH / 2;
-  const labelX = esImpar ? x - HW - 0.12 : x + HW + 0.12;
+// ── Rack ejecutivo ─────────────────────────────────────────────────────────
+const RackEstructura = ({ x, z, niveles, rackNum, esImpar, esU2 }) => {
+  const profundidadExtra = esU2 ? 1.3 : 0;
+  const depthSign = esImpar ? -1 : 1;
+  const xBack = x + depthSign * profundidadExtra;
+
+  const colH  = niveles * NIVEL_H + Math.abs(FLOOR_Y);
+  const colMY = FLOOR_Y + colH / 2;
+
+  const labelX  = esImpar ? x - HW - 0.12 : x + HW + 0.12;
   const labelRY = esImpar ? Math.PI / 2 : -Math.PI / 2;
+
+  const postsX = esU2
+    ? [[x - HW, -HD], [x - HW, HD], [xBack + (esImpar ? -HW : HW), -HD], [xBack + (esImpar ? -HW : HW), HD]]
+    : [[-HW, -HD], [-HW, HD], [HW, -HD], [HW, HD]].map(([dx, dz]) => [x + dx, dz]);
 
   return (
     <group>
-      {/* Columnas verticales — acero #4a5568 */}
-      {[[-HW, -HD], [-HW, HD], [HW, -HD], [HW, HD]].map(([dx, dz], i) => (
-        <mesh key={i} position={[x + dx, colMY, z + dz]} castShadow>
+      {postsX.map(([px, dz], i) => (
+        <mesh key={i} position={[px, colMY, z + dz]} castShadow>
           <boxGeometry args={[0.06, colH, 0.06]} />
-          <meshStandardMaterial color="#4a5568" metalness={0.95} roughness={0.1} />
+          <meshStandardMaterial color="#3f4754" metalness={0.7} roughness={0.35} />
         </mesh>
       ))}
 
-      {/* Vigas horizontales por nivel */}
       {Array.from({ length: niveles + 1 }, (_, n) => (
-        <mesh key={n} position={[x, nivelBase(n + 1), z]} castShadow>
-          <boxGeometry args={[PALLET_D + 0.16, 0.05, PALLET_W + 0.1]} />
-          <meshStandardMaterial color="#37474F" metalness={0.85} roughness={0.25} />
-        </mesh>
+        <React.Fragment key={n}>
+          <mesh position={[x, nivelBase(n + 1), z]} castShadow>
+            <boxGeometry args={[PALLET_D + 0.16, 0.05, PALLET_W + 0.1]} />
+            <meshStandardMaterial color="#2d3340" metalness={0.65} roughness={0.4} />
+          </mesh>
+          {esU2 && (
+            <mesh position={[xBack, nivelBase(n + 1), z]} castShadow>
+              <boxGeometry args={[PALLET_D + 0.16, 0.05, PALLET_W + 0.1]} />
+              <meshStandardMaterial color="#2d3340" metalness={0.65} roughness={0.4} />
+            </mesh>
+          )}
+        </React.Fragment>
       ))}
 
-      {/* Barra naranja de seguridad — kickplate */}
       <mesh position={[x, FLOOR_Y + 0.04, z]}>
         <boxGeometry args={[PALLET_D + 0.16, 0.08, PALLET_W + 0.1]} />
-        <meshStandardMaterial color="#ea580c" metalness={0.2} roughness={0.6} />
+        <meshStandardMaterial color="#b45309" metalness={0.25} roughness={0.55} />
       </mesh>
+      {esU2 && (
+        <mesh position={[xBack, FLOOR_Y + 0.04, z]}>
+          <boxGeometry args={[PALLET_D + 0.16, 0.08, PALLET_W + 0.1]} />
+          <meshStandardMaterial color="#b45309" metalness={0.25} roughness={0.55} />
+        </mesh>
+      )}
 
-      {/* Número de rack — visible desde el pasillo de circulación */}
       <Text
         position={[labelX, nivelBase(1) + 0.4, z]}
         rotation={[0, labelRY, 0]}
         fontSize={0.2}
-        color="#78909C"
+        color="#94a3b8"
         anchorX="center"
         anchorY="middle"
       >
@@ -74,14 +90,14 @@ const RackEstructura = ({ x, z, niveles, rackNum, esImpar }) => {
   );
 };
 
-// ── Pallet europeo PBR ─────────────────────────────────────────────────────
-function PalletMesh({ ubi, x, z, palletsEnUbi, modoColor, colorMapSKU, opacidad, matchBusqueda, onSelectPallet, isSelected }) {
+// ── Pallet ejecutivo PBR ───────────────────────────────────────────────────
+function PalletMesh({ ubi, x, z, palletsEnUbi, modoColor, colorMapSKU, opacidad, matchBusqueda, onSelectPallet, isSelected, esU2, esImpar }) {
   const base = nivelBase(ubi.nivel);
 
-  const colorBorde = matchBusqueda ? '#ef4444' : '#334155';
+  const colorBorde = matchBusqueda ? '#f59e0b' : '#1e293b';
   const colorCarga = palletsEnUbi.length > 0
     ? getColorCarga(palletsEnUbi, modoColor, colorMapSKU)
-    : '#334155';
+    : '#1e293b';
 
   const cantidad = palletsEnUbi[0]?.cantidad ?? 0;
   const altCarga = Math.min(0.5 + (cantidad / 100) * 0.5, NIVEL_H - 0.22);
@@ -89,53 +105,63 @@ function PalletMesh({ ubi, x, z, palletsEnUbi, modoColor, colorMapSKU, opacidad,
   const cargoY   = base + 0.12 + altCarga / 2;
   const zunchoY  = base + 0.12 + altCarga - 0.07;
 
+  const depthSign = esImpar ? -1 : 1;
+  const xBack = x + depthSign * 1.3;
+
+  if (palletsEnUbi.length === 0) return null;
+
   return (
     <group>
-      {palletsEnUbi.length > 0 && (
-        <>
-          <group
-            onClick={(e) => { e.stopPropagation(); if (opacidad > 0.5) onSelectPallet({ ubi, pallets: palletsEnUbi }); }}
-            onPointerOver={(e) => { e.stopPropagation(); if (opacidad > 0.5) document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { document.body.style.cursor = 'auto'; }}
-          >
-            {/* Base madera pallet europeo 1200×800 */}
-            <mesh position={[x, woodY, z]} castShadow>
+      <group
+        onClick={(e) => { e.stopPropagation(); if (opacidad > 0.5) onSelectPallet({ ubi, pallets: palletsEnUbi }); }}
+        onPointerOver={(e) => { e.stopPropagation(); if (opacidad > 0.5) document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+      >
+        {/* Pallet frontal */}
+        <mesh position={[x, woodY, z]} castShadow>
+          <boxGeometry args={[PALLET_D, 0.12, PALLET_W]} />
+          <meshStandardMaterial color="#a16207" roughness={0.9} metalness={0} transparent opacity={opacidad} />
+        </mesh>
+        <mesh position={[x, cargoY, z]} castShadow>
+          <boxGeometry args={[PALLET_D - 0.04, altCarga, PALLET_W - 0.04]} />
+          <meshStandardMaterial color={colorCarga} roughness={0.45} metalness={0.05} transparent opacity={opacidad} />
+          <Edges scale={matchBusqueda ? 1.06 : 1.01} threshold={15} color={colorBorde} />
+        </mesh>
+        <mesh position={[x, zunchoY, z]}>
+          <boxGeometry args={[PALLET_D + 0.01, 0.03, 0.05]} />
+          <meshStandardMaterial color="#0f172a" transparent opacity={opacidad} />
+        </mesh>
+        <mesh position={[x, zunchoY, z]}>
+          <boxGeometry args={[0.05, 0.03, PALLET_W + 0.01]} />
+          <meshStandardMaterial color="#0f172a" transparent opacity={opacidad} />
+        </mesh>
+
+        {/* Pallet trasero U2 */}
+        {esU2 && (
+          <>
+            <mesh position={[xBack, woodY, z]} castShadow>
               <boxGeometry args={[PALLET_D, 0.12, PALLET_W]} />
-              <meshStandardMaterial color="#8B6914" roughness={0.95} metalness={0} transparent opacity={opacidad} />
+              <meshStandardMaterial color="#a16207" roughness={0.9} metalness={0} transparent opacity={opacidad} />
             </mesh>
-
-            {/* Carga proporcional a cantidad */}
-            <mesh position={[x, cargoY, z]} castShadow>
+            <mesh position={[xBack, cargoY, z]} castShadow>
               <boxGeometry args={[PALLET_D - 0.04, altCarga, PALLET_W - 0.04]} />
-              <meshStandardMaterial color={colorCarga} roughness={0.4} metalness={0} transparent opacity={opacidad} />
-              <Edges scale={matchBusqueda ? 1.05 : 1.01} threshold={15} color={colorBorde} />
+              <meshStandardMaterial color={colorCarga} roughness={0.45} metalness={0.05} transparent opacity={opacidad * 0.85} />
             </mesh>
+          </>
+        )}
+      </group>
 
-            {/* Zuncho X */}
-            <mesh position={[x, zunchoY, z]}>
-              <boxGeometry args={[PALLET_D + 0.01, 0.03, 0.05]} />
-              <meshStandardMaterial color="#1e293b" transparent opacity={opacidad} />
-            </mesh>
-            {/* Zuncho Z */}
-            <mesh position={[x, zunchoY, z]}>
-              <boxGeometry args={[0.05, 0.03, PALLET_W + 0.01]} />
-              <meshStandardMaterial color="#1e293b" transparent opacity={opacidad} />
-            </mesh>
-          </group>
-
-          {isSelected && (
-            <Text
-              position={[x, base + altCarga + 0.6, z]}
-              fontSize={0.25}
-              color="#fbbf24"
-              anchorX="center"
-              outlineWidth={0.02}
-              outlineColor="#000000"
-            >
-              {ubi.ubicacion}
-            </Text>
-          )}
-        </>
+      {isSelected && (
+        <Text
+          position={[x, base + altCarga + 0.65, z]}
+          fontSize={0.28}
+          color="#fbbf24"
+          anchorX="center"
+          outlineWidth={0.025}
+          outlineColor="#000000"
+        >
+          {ubi.ubicacion}
+        </Text>
       )}
     </group>
   );
@@ -155,20 +181,23 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
     [maestro],
   );
 
-  // U1 y U2 comparten posición física → clave sin tipoUbi
   const racks = useMemo(() => {
     const map = new Map();
     maestro.forEach(u => {
       const key  = `${u.pasillo}-${u.rack}`;
       const prev = map.get(key);
       if (!prev || u.nivel > prev.niveles) {
-        map.set(key, { pasillo: u.pasillo, rack: u.rack, niveles: u.nivel });
+        map.set(key, {
+          pasillo: u.pasillo,
+          rack: u.rack,
+          niveles: u.nivel,
+          esU2: u.tipoUbi === 'U2',
+        });
       }
     });
     return [...map.values()];
   }, [maestro]);
 
-  // Dimensiones de escena
   const { centroX, centroZ, offsetZ, topY, maxP } = useMemo(() => {
     if (!maestro.length) return { centroX: 0, centroZ: 0, offsetZ: 30, topY: 6, maxP: 1 };
     const maxP  = Math.max(...maestro.map(u => u.pasillo));
@@ -176,8 +205,8 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
     const maxN  = Math.max(...maestro.map(u => u.nivel));
     const maxRG = Math.ceil(maxR / 2);
     const oZ    = Math.max(30, maxRG * 1.4 + 10);
-    const zFirst = oZ - 1.4;                // par 1 (racks 1,2)
-    const zLast  = oZ - maxRG * 1.4;        // último par
+    const zFirst = oZ - 1.4;
+    const zLast  = oZ - maxRG * 1.4;
     return {
       centroX: (maxP - 1) * 8,
       centroZ: (zFirst + zLast) / 2,
@@ -192,37 +221,41 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
     onSelectPallet(data);
   };
 
-  const lineOff    = 1.3 + HW + 0.1;            // 1.88 — borde exterior bloque
+  const lineOff    = 1.3 + HW + 0.1;
   const leftWallX  = -6;
   const rightWallX = (maxP - 1) * 16 + 6;
-  const wallMidY   = FLOOR_Y + 7.5;             // centro de pared de 15u
+  const wallMidY   = FLOOR_Y + 8;
 
   return (
     <Canvas shadows camera={{ position: [centroX, 35, 65], fov: 50 }}>
-      <fog attach="fog" args={['#0a0a0f', 40, 120]} />
+      <fog attach="fog" args={['#e5e7eb', 80, 200]} />
 
-      <ambientLight intensity={0.2} />
-      <directionalLight
-        position={[centroX, 20, centroZ + 20]}
-        intensity={0.5}
+      <ambientLight intensity={0.6} color="#ffffff" />
+      <spotLight
+        position={[centroX - 20, 18, centroZ]}
+        intensity={1.5}
+        color="#f0f9ff"
+        angle={Math.PI / 3}
+        penumbra={0.4}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
-
-      {/* Lámparas industriales — 1 cada 2 pasillos */}
-      {pasillos.filter((_, i) => i % 2 === 0).map(p => {
-        const lampX = (p - 1) * 16;
-        return (
-          <React.Fragment key={p}>
-            <pointLight position={[lampX, 12, centroZ]} intensity={1.5} color="#fff5e0" distance={25} decay={2} />
-            <mesh position={[lampX, 12, centroZ]}>
-              <sphereGeometry args={[0.15, 8, 8]} />
-              <meshStandardMaterial color="#fffde7" emissive="#fffde7" emissiveIntensity={2} />
-            </mesh>
-          </React.Fragment>
-        );
-      })}
+      <spotLight
+        position={[centroX + 20, 18, centroZ]}
+        intensity={1.5}
+        color="#f0f9ff"
+        angle={Math.PI / 3}
+        penumbra={0.4}
+        castShadow
+      />
+      <spotLight
+        position={[centroX, 18, centroZ + 20]}
+        intensity={1.2}
+        color="#f0f9ff"
+        angle={Math.PI / 3}
+        penumbra={0.4}
+      />
 
       <OrbitControls
         makeDefault
@@ -232,45 +265,46 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
         maxDistance={150}
       />
 
-      {/* Piso concreto */}
+      {/* Piso oscuro */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[centroX, FLOOR_Y, centroZ]} receiveShadow>
         <planeGeometry args={[200, 80]} />
-        <meshStandardMaterial color="#1c1c1e" roughness={0.95} metalness={0} />
+        <meshStandardMaterial color="#2a2a2e" roughness={0.92} metalness={0.05} />
       </mesh>
 
-      {/* Paredes laterales */}
+      {/* Grid sobre piso */}
+      <Grid
+        position={[centroX, FLOOR_Y + 0.001, centroZ]}
+        args={[200, 80]}
+        cellSize={2}
+        cellThickness={0.5}
+        cellColor="#1a1a1e"
+        sectionSize={10}
+        sectionThickness={1}
+        sectionColor="#222228"
+        fadeDistance={80}
+        fadeStrength={1}
+        infiniteGrid={false}
+      />
+
+      {/* Paredes laterales claras */}
       <mesh position={[leftWallX, wallMidY, centroZ]}>
-        <boxGeometry args={[0.5, 15, 80]} />
-        <meshStandardMaterial color="#111318" roughness={0.9} metalness={0.05} />
+        <boxGeometry args={[0.4, 16, 80]} />
+        <meshStandardMaterial color="#d4d4d8" roughness={0.85} metalness={0.02} />
       </mesh>
       <mesh position={[rightWallX, wallMidY, centroZ]}>
-        <boxGeometry args={[0.5, 15, 80]} />
-        <meshStandardMaterial color="#111318" roughness={0.9} metalness={0.05} />
+        <boxGeometry args={[0.4, 16, 80]} />
+        <meshStandardMaterial color="#d4d4d8" roughness={0.85} metalness={0.02} />
       </mesh>
 
-      {/* Techo */}
-      <mesh position={[centroX, 14, centroZ]}>
-        <boxGeometry args={[200, 0.3, 80]} />
-        <meshStandardMaterial color="#0d0d0f" roughness={0.9} />
-      </mesh>
-
-      {/* Vigas transversales cada 8u */}
-      {Array.from({ length: 10 }, (_, i) => (
-        <mesh key={i} position={[centroX, 13.85, centroZ + (i - 5) * 8]}>
-          <boxGeometry args={[200, 0.3, 0.4]} />
-          <meshStandardMaterial color="#1a1a1f" />
-        </mesh>
-      ))}
-
-      {/* Zona picking — frente del primer par de racks */}
+      {/* Zona picking */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[centroX, FLOOR_Y + 0.001, offsetZ + 1.5]}>
         <planeGeometry args={[200, 3]} />
-        <meshStandardMaterial color="#052e16" roughness={0.85} transparent opacity={0.85} />
+        <meshStandardMaterial color="#052e16" roughness={0.85} transparent opacity={0.7} />
       </mesh>
       <Text
         position={[centroX, FLOOR_Y + 0.01, offsetZ + 1.5]}
         rotation={[-Math.PI / 2, 0, 0]}
-        fontSize={0.45}
+        fontSize={0.5}
         color="#22c55e"
         anchorX="center"
         anchorY="middle"
@@ -278,7 +312,7 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
         ZONA PICKING
       </Text>
 
-      {/* Líneas amarillas — bordes del bloque de cada pasillo */}
+      {/* Líneas amarillas de pasillo */}
       {pasillos.map(p => {
         const cx = (p - 1) * 16;
         return (
@@ -296,7 +330,7 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
       })}
 
       {/* Estructuras de rack */}
-      {racks.map(({ pasillo, rack, niveles }) => {
+      {racks.map(({ pasillo, rack, niveles, esU2 }) => {
         const { x, z, esImpar } = calcPos(pasillo, rack, offsetZ);
         return (
           <RackEstructura
@@ -305,13 +339,14 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
             niveles={niveles}
             rackNum={rack}
             esImpar={esImpar}
+            esU2={esU2}
           />
         );
       })}
 
       {/* Pallets */}
       {maestro.map((ubi, i) => {
-        const { x, z }     = calcPos(ubi.pasillo, ubi.rack, offsetZ);
+        const { x, z, esImpar } = calcPos(ubi.pasillo, ubi.rack, offsetZ);
         const palletsEnUbi = invPorUbicacion[ubi.ubicacion] ?? [];
         const ocupado      = palletsEnUbi.length > 0;
         let matchBusqueda  = false;
@@ -324,9 +359,9 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
               p.descripcion?.toLowerCase().includes(searchNormalized) ||
               p.lote?.toLowerCase().includes(searchNormalized)
             );
-            opacidad = matchBusqueda ? 1 : 0.1;
+            opacidad = matchBusqueda ? 1 : 0.08;
           } else {
-            opacidad = 0.1;
+            opacidad = 0.08;
           }
         }
 
@@ -342,17 +377,19 @@ export default function Warehouse3D({ maestro, lx02, modoColor, colorMapSKU, onS
             matchBusqueda={matchBusqueda}
             onSelectPallet={handleSelect}
             isSelected={selectedUbicacion === ubi.ubicacion}
+            esU2={ubi.tipoUbi === 'U2'}
+            esImpar={esImpar}
           />
         );
       })}
 
-      {/* Etiquetas de pasillo — al frente del bloque */}
+      {/* Etiquetas de pasillo ejecutivas */}
       {pasillos.map(p => (
         <Text
           key={p}
           position={[(p - 1) * 16, topY + 1.5, offsetZ + 0.5]}
-          fontSize={0.9}
-          color="#3b82f6"
+          fontSize={4}
+          color="#f8fafc"
           anchorX="center"
           anchorY="middle"
         >
